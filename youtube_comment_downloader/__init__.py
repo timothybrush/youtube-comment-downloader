@@ -1,4 +1,5 @@
 import argparse
+import csv
 import io
 import json
 import os
@@ -10,12 +11,44 @@ from .downloader import YoutubeCommentDownloader, SORT_BY_POPULAR, SORT_BY_RECEN
 INDENT = 4
 
 
-def to_json(comment, indent=None):
-    comment_str = json.dumps(comment, ensure_ascii=False, indent=indent)
-    if indent is None:
-        return comment_str
-    padding = ' ' * (2 * indent) if indent else ''
-    return ''.join(padding + line for line in comment_str.splitlines(True))
+class CommentWriter:
+    def __init__(self, output_file, file_format='jsonl'):
+        self.output_file = output_file
+        self.file_format = file_format
+        self.fp = None
+        self.writer = None
+
+    def open(self):
+        encoding = 'utf-8-sig' if self.file_format == 'csv' else 'utf8'
+        newline = '' if self.file_format == 'csv' else None
+        self.fp = io.open(self.output_file, 'w', encoding=encoding, newline=newline)
+        if self.file_format == 'json':
+            self.fp.write('{\n' + ' ' * INDENT + '"comments": [\n')
+
+    def write(self, comment, is_last=False):
+        if self.file_format == 'csv':
+            if self.writer is None:
+                self.writer = csv.DictWriter(self.fp, fieldnames=comment.keys(), delimiter=';')
+                self.writer.writeheader()
+            self.writer.writerow(comment)
+        else:
+            # Format as single-line JSON or indented JSON
+            indent = INDENT if self.file_format == 'json' else None
+            comment_str = json.dumps(comment, ensure_ascii=False, indent=indent)
+
+            if indent is not None:
+                padding = ' ' * (2 * indent)
+                comment_str = ''.join(padding + line for line in comment_str.splitlines(True))
+                if not is_last:
+                    comment_str += ','
+
+            print(comment_str.decode('utf-8') if isinstance(comment_str, bytes) else comment_str, file=self.fp)
+
+    def close(self):
+        if self.fp:
+            if self.file_format == 'json':
+                self.fp.write(' ' * INDENT + ']\n}')
+            self.fp.close()
 
 
 def main(argv = None):
@@ -23,8 +56,9 @@ def main(argv = None):
     parser.add_argument('--help', '-h', action='help', default=argparse.SUPPRESS, help='Show this help message and exit')
     parser.add_argument('--youtubeid', '-y', help='ID of Youtube video for which to download the comments')
     parser.add_argument('--url', '-u', help='Youtube URL for which to download the comments')
-    parser.add_argument('--output', '-o', help='Output filename (output format is line delimited JSON)')
-    parser.add_argument('--pretty', '-p', action='store_true', help='Change the output format to indented JSON')
+    parser.add_argument('--output', '-o', help='Output filename')
+    parser.add_argument('--format', '-f', choices=['jsonl', 'json', 'csv'], default='jsonl',
+                        help='Output format: line delimited JSON (jsonl), indented JSON (json), or CSV (csv). Defaults to jsonl')
     parser.add_argument('--limit', '-l', type=int, help='Limit the number of comments')
     parser.add_argument('--language', '-a', type=str, default=None, help='Language for Youtube generated text (e.g. en)')
     parser.add_argument('--sort', '-s', type=int, default=SORT_BY_RECENT,
@@ -37,7 +71,7 @@ def main(argv = None):
         youtube_url = args.url
         output = args.output
         limit = args.limit
-        pretty = args.pretty
+        file_format = args.format
 
         if (not youtube_id and not youtube_url) or not output:
             parser.print_usage()
@@ -56,28 +90,27 @@ def main(argv = None):
             else downloader.get_comments_from_url(youtube_url, args.sort, args.language)
         )
 
-        fp = None
+        writer = None
         count = 0
         start_time = time.time()
         comment = next(generator, None)
 
         while comment:
-            if not fp:
-                fp = io.open(output, 'w', encoding='utf8')
-            if pretty and count == 0:
-                fp.write('{\n' + ' ' * INDENT + '"comments": [\n')
-            comment_str = to_json(comment, indent=INDENT if pretty else None)
-            comment = None if limit and count >= limit else next(generator, None)  # Note that this is the next comment
-            comment_str = comment_str + ',' if pretty and comment is not None else comment_str
-            print(comment_str.decode('utf-8') if isinstance(comment_str, bytes) else comment_str, file=fp)
+            if not writer:
+                writer = CommentWriter(output, file_format=file_format)
+                writer.open()
+
+            next_comment = None if limit and count + 1 >= limit else next(generator, None)
+
+            writer.write(comment, is_last=(next_comment is None))
+            count += 1
             sys.stdout.write('Downloaded %d comment(s)\r' % count)
             sys.stdout.flush()
-            count += 1
 
-        if pretty and fp:
-            fp.write(' ' * INDENT +']\n}')
-        if fp:
-            fp.close()
+            comment = next_comment
+
+        if writer:
+            writer.close()
 
         print('\n[{:.2f} seconds] Done!'.format(time.time() - start_time) if count else 'No comment available!')
 
