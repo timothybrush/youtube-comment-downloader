@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import os
+import re
 import sys
 import time
 
@@ -56,7 +57,7 @@ def main(argv = None):
     parser.add_argument('--help', '-h', action='help', default=argparse.SUPPRESS, help='Show this help message and exit')
     parser.add_argument('--youtubeid', '-y', help='ID of Youtube video for which to download the comments')
     parser.add_argument('--url', '-u', help='Youtube URL for which to download the comments')
-    parser.add_argument('--output', '-o', help='Output filename')
+    parser.add_argument('--output', '-o', default=None, help='Output filename (optional, defaults to video_id.ext)')
     parser.add_argument('--format', '-f', choices=['jsonl', 'json', 'csv'], default='jsonl',
                         help='Output format: line delimited JSON (jsonl), indented JSON (json), or CSV (csv). Defaults to jsonl')
     parser.add_argument('--limit', '-l', type=int, help='Limit the number of comments')
@@ -73,9 +74,24 @@ def main(argv = None):
         limit = args.limit
         file_format = args.format
 
-        if (not youtube_id and not youtube_url) or not output:
+        if not youtube_id and not youtube_url:
             parser.print_usage()
-            raise ValueError('you need to specify a Youtube ID/URL and an output filename')
+            raise ValueError('you need to specify a Youtube ID or URL')
+
+        if not output:
+            # Fallback to using the video ID as filename if --output is omitted
+            if youtube_id:
+                extracted_id = youtube_id
+            else:
+                match = re.search(r'(?:v=|\/v\/|youtu\.be\/|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})', youtube_url)
+                extracted_id = match.group(1) if match else 'youtube_comments'
+            output = f"{extracted_id}.{file_format}"
+
+            if os.path.exists(output):
+                raise FileExistsError(
+                    f"The default output file '{output}' already exists. "
+                    f"Use --output to specify a custom name or to overwrite the file."
+                )
 
         if os.sep in output:
             outdir = os.path.dirname(output)
