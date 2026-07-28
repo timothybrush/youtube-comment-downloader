@@ -103,9 +103,12 @@ class YoutubeCommentDownloader:
                                               'shorts-engagement-panel-comments-section']:
                         # Process continuations for comments and replies.
                         continuations[:0] = [ep for ep in self.search_dict(item, 'continuationEndpoint')]
-                    if action['targetId'].startswith('comment-replies-item') and 'continuationItemRenderer' in item:
+                    if action['targetId'].startswith('comment-replies-item'):
                         # Process the 'Show more replies' button
-                        continuations.append(next(self.search_dict(item, 'buttonRenderer'))['command'])
+                        buttons = self.search_dict(item, 'buttonRenderer')
+                        for button in buttons:
+                            if 'command' in button:
+                                continuations.append(button['command'])
 
             surface_payloads = self.search_dict(response, 'commentSurfaceEntityPayload')
             payments = {payload['key']: next(self.search_dict(payload, 'simpleText'), '')
