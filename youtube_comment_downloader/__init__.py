@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import time
 
@@ -13,23 +14,30 @@ INDENT = 4
 
 
 class CommentWriter:
-    def __init__(self, output_file, file_format='jsonl'):
+    def __init__(self, output_file, file_format='jsonl', delimiter=','):
         self.output_file = output_file
         self.file_format = file_format
+        self.delimiter = delimiter
         self.fp = None
         self.writer = None
 
     def open(self):
-        encoding = 'utf-8-sig' if self.file_format == 'csv' else 'utf8'
-        newline = '' if self.file_format == 'csv' else None
+        is_csv_type = self.file_format in ('csv', 'scsv')
+        encoding = 'utf-8-sig' if is_csv_type else 'utf8'
+        newline = '' if is_csv_type else None
         self.fp = io.open(self.output_file, 'w', encoding=encoding, newline=newline)
         if self.file_format == 'json':
             self.fp.write('{\n' + ' ' * INDENT + '"comments": [\n')
 
     def write(self, comment, is_last=False):
-        if self.file_format == 'csv':
+        if self.file_format in ('csv', 'scsv'):
             if self.writer is None:
-                self.writer = csv.DictWriter(self.fp, fieldnames=comment.keys(), delimiter=';')
+                self.writer = csv.DictWriter(
+                    self.fp,
+                    fieldnames=comment.keys(),
+                    delimiter=self.delimiter,
+                    quoting=csv.QUOTE_MINIMAL
+                )
                 self.writer.writeheader()
             self.writer.writerow(comment)
         else:
@@ -53,15 +61,29 @@ class CommentWriter:
 
 
 def main(argv = None):
-    parser = argparse.ArgumentParser(add_help=False, description=('Download Youtube comments without using the Youtube API'))
-    parser.add_argument('--help', '-h', action='help', default=argparse.SUPPRESS, help='Show this help message and exit')
+    parser = argparse.ArgumentParser(
+        add_help=False,
+        description='Download Youtube comments without using the Youtube API',
+        formatter_class=lambda prog: argparse.HelpFormatter(
+            prog,
+            max_help_position=45,
+            width=shutil.get_terminal_size((80, 20)).columns
+        )
+    )
+    parser.add_argument('--help', '-h', action='help', default=argparse.SUPPRESS,
+                        help='Show this help message and exit')
     parser.add_argument('--youtubeid', '-y', help='ID of Youtube video for which to download the comments')
     parser.add_argument('--url', '-u', help='Youtube URL for which to download the comments')
     parser.add_argument('--output', '-o', default=None, help='Output filename (optional, defaults to video_id.ext)')
-    parser.add_argument('--format', '-f', choices=['jsonl', 'json', 'csv'], default='jsonl',
-                        help='Output format: line delimited JSON (jsonl), indented JSON (json), or CSV (csv). Defaults to jsonl')
+    parser.add_argument(
+        '--format', '-f',
+        choices=['jsonl', 'json', 'csv', 'scsv'],
+        default='jsonl',
+        help='Output format: jsonl, json, csv (comma), or scsv (semicolon).'
+    )
     parser.add_argument('--limit', '-l', type=int, help='Limit the number of comments')
-    parser.add_argument('--language', '-a', type=str, default=None, help='Language for Youtube generated text (e.g. en)')
+    parser.add_argument('--language', '-a', type=str, default=None,
+                        help='Language for Youtube generated text (e.g. en)')
     parser.add_argument('--sort', '-s', type=int, default=SORT_BY_RECENT,
                         help='Whether to download popular (0) or recent comments (1). Defaults to 1')
 
@@ -85,7 +107,9 @@ def main(argv = None):
             else:
                 match = re.search(r'(?:v=|\/v\/|youtu\.be\/|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})', youtube_url)
                 extracted_id = match.group(1) if match else 'youtube_comments'
-            output = f"{extracted_id}.{file_format}"
+
+            file_extension = 'csv' if file_format in ('csv', 'scsv') else file_format
+            output = f"{extracted_id}.{file_extension}"
 
             if os.path.exists(output):
                 raise FileExistsError(
@@ -113,7 +137,8 @@ def main(argv = None):
 
         while comment:
             if not writer:
-                writer = CommentWriter(output, file_format=file_format)
+                delimiter = ';' if file_format == 'scsv' else ','
+                writer = CommentWriter(output, file_format=file_format, delimiter=delimiter)
                 writer.open()
 
             next_comment = None if limit and count + 1 >= limit else next(generator, None)

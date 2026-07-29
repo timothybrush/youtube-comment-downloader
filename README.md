@@ -18,19 +18,21 @@ pip install https://github.com/egbertbouman/youtube-comment-downloader/archive/m
 ### Usage as command-line interface
 ```
 $ youtube-comment-downloader --help
-usage: youtube-comment-downloader [--help] [--youtubeid YOUTUBEID] [--url URL] [--output OUTPUT] [--format {jsonl,json,csv}] [--limit LIMIT] [--language LANGUAGE] [--sort SORT]
+usage: youtube-comment-downloader [--help] [--youtubeid YOUTUBEID] [--url URL] [--output OUTPUT]
+                                  [--format {jsonl,json,csv,scsv}] [--limit LIMIT] [--language LANGUAGE] [--sort SORT]
 
 Download Youtube comments without using the Youtube API
 
 options:
-  --help, -h                                      Show this help message and exit
-  --youtubeid YOUTUBEID, -y YOUTUBEID             ID of Youtube video for which to download the comments
-  --url URL, -u URL                               Youtube URL for which to download the comments
-  --output OUTPUT, -o OUTPUT                      Output filename (optional, defaults to video_id.ext)
-  --format {jsonl,json,csv}, -f {jsonl,json,csv}  Output format: line delimited JSON (jsonl), indented JSON (json), or CSV (csv). Defaults to jsonl
-  --limit LIMIT, -l LIMIT                         Limit the number of comments
-  --language LANGUAGE, -a LANGUAGE                Language for Youtube generated text (e.g. en)
-  --sort SORT, -s SORT                            Whether to download popular (0) or recent comments (1). Defaults to 1
+  --help, -h                                 Show this help message and exit
+  --youtubeid YOUTUBEID, -y YOUTUBEID        ID of Youtube video for which to download the comments
+  --url URL, -u URL                          Youtube URL for which to download the comments
+  --output OUTPUT, -o OUTPUT                 Output filename (optional, defaults to video_id.ext)
+  --format {jsonl,json,csv,scsv}, -f {jsonl,json,csv,scsv}
+                                             Output format: jsonl, json, csv (comma), or scsv (semicolon).
+  --limit LIMIT, -l LIMIT                    Limit the number of comments
+  --language LANGUAGE, -a LANGUAGE           Language for Youtube generated text (e.g. en)
+  --sort SORT, -s SORT                       Whether to download popular (0) or recent comments (1). Defaults to 1
 ```
 
 For example (automatically saves to `ScMzIvxBSi4.jsonl`):
